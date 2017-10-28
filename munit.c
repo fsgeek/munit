@@ -1415,7 +1415,7 @@ munit_test_runner_run_test_with_params(MunitTestRunner* runner, const MunitTest*
 #endif
   {
 #if !defined(MUNIT_NO_BUFFER)
-    const volatile int orig_stderr = munit_replace_stderr(stderr_buf);
+    /* const volatile int */ orig_stderr = munit_replace_stderr(stderr_buf);
 #endif
 
 #if defined(MUNIT_THREAD_LOCAL)
