@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017 Evan Nemerson <evan@nemerson.com>
+/* Copyright (c) 2013-2018 Evan Nemerson <evan@nemerson.com>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -120,10 +120,10 @@
 #define MUNIT_STRINGIFY(x) #x
 #define MUNIT_XSTRINGIFY(x) MUNIT_STRINGIFY(x)
 
-#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201102L)) || defined(_Thread_local)
-#  define MUNIT_THREAD_LOCAL _Thread_local
-#elif defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__SUNPRO_CC) || defined(__IBMCPP__)
+#if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__SUNPRO_CC) || defined(__IBMCPP__)
 #  define MUNIT_THREAD_LOCAL __thread
+#elif (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201102L)) || defined(_Thread_local)
+#  define MUNIT_THREAD_LOCAL _Thread_local
 #elif defined(_WIN32)
 #  define MUNIT_THREAD_LOCAL __declspec(thread)
 #endif
@@ -760,6 +760,8 @@ munit_clock_get_elapsed(struct PsnipClockTimespec* start, struct PsnipClockTimes
   return r;
 }
 
+#else
+#  include <time.h>
 #endif /* defined(MUNIT_ENABLE_TIMING) */
 
 /*** PRNG stuff ***/
@@ -775,7 +777,7 @@ munit_clock_get_elapsed(struct PsnipClockTimespec* start, struct PsnipClockTimes
  * important that it be reproducible, so bug reports have a better
  * chance of being reproducible. */
 
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) && !defined(__STDC_NO_ATOMICS__) && !defined(__EMSCRIPTEN__)
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L) && !defined(__STDC_NO_ATOMICS__) && !defined(__EMSCRIPTEN__) && (!defined(__GNUC_MINOR__) || (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ > 8))
 #  define HAVE_STDATOMIC
 #elif defined(__clang__)
 #  if __has_extension(c_atomic)
@@ -900,11 +902,15 @@ munit_rand_seed(munit_uint32_t seed) {
 
 static munit_uint32_t
 munit_rand_generate_seed(void) {
-  struct PsnipClockTimespec wc;
   munit_uint32_t seed, state;
+#if defined(MUNIT_ENABLE_TIMING)
+  struct PsnipClockTimespec wc = { 0, };
 
   psnip_clock_get_time(PSNIP_CLOCK_TYPE_WALL, &wc);
   seed = (munit_uint32_t) wc.nanoseconds;
+#else
+  seed = (munit_uint32_t) time(NULL);
+#endif
 
   state = munit_rand_next_state(seed + MUNIT_PRNG_INCREMENT);
   return munit_rand_from_state(state);
@@ -1059,10 +1065,12 @@ munit_parameters_get(const MunitParameter params[], const char* key) {
   return NULL;
 }
 
+#if defined(MUNIT_ENABLE_TIMING)
 static void
 munit_print_time(FILE* fp, munit_uint64_t nanoseconds) {
   fprintf(fp, "%" MUNIT_TEST_TIME_FORMAT, ((double) nanoseconds) / ((double) PSNIP_CLOCK_NSEC_PER_SEC));
 }
+#endif
 
 /* Add a paramter to an array of parameters. */
 static MunitResult
@@ -1164,8 +1172,8 @@ munit_test_runner_exec(MunitTestRunner* runner, const MunitTest* test, const Mun
   unsigned int iterations = runner->iterations;
   MunitResult result = MUNIT_FAIL;
 #if defined(MUNIT_ENABLE_TIMING)
-  struct PsnipClockTimespec wall_clock_begin, wall_clock_end;
-  struct PsnipClockTimespec cpu_clock_begin, cpu_clock_end;
+  struct PsnipClockTimespec wall_clock_begin = { 0, }, wall_clock_end = { 0, };
+  struct PsnipClockTimespec cpu_clock_begin = { 0, }, cpu_clock_end = { 0, };
 #endif
   unsigned int i = 0;
 
