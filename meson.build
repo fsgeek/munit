@@ -3,7 +3,7 @@ project('munit', 'c')
 conf_data = configuration_data()
 conf_data.set('version', '0.2.0')
 
-add_project_arguments('-std=c99', language : 'c')
+add_project_arguments('-std=c11', language : 'c')
 
 cc  = meson.get_compiler('c')
 
